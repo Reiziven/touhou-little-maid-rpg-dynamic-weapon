@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "studio.fantasyit.maid_rpg_task.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "maid_rpg_task.refmap.json",
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

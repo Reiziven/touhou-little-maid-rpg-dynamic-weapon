@@ -1,0 +1,23 @@
+{
+  "task.maid_rpg_task.maid_tree": "Logging",
+  "task.maid_rpg_task.maid_tree.desc": "The maid will cut down the logs around her and plant saplings.",
+  "task.maid_rpg_task.mage_task": "Mage",
+  "task.maid_rpg_task.mage_task.desc": "The maid will use elemental magic with a gohei with special habilities she will deal big area or single damage but she will have low health.",
+  "task.maid_rpg_task.locate": "Locate",
+  "task.maid_rpg_task.locate.desc": "The maid can locate the some structure or your home with specific items.",
+  "task.maid_rpg_task.support": "Support",
+  "task.maid_rpg_task.support.desc": "The maid will revive nearby bleeding player and give positive effects for team.",
+  "task.maid_rpg_task.dps_task": "Damage Dealer",
+  "task.maid_rpg_task.dps_task.desc": "The maid will deal big damage to enemies but have low health.",
+  "task.maid_rpg_task.tank_task": "Tank",
+  "task.maid_rpg_task.tank_task.desc": "The maid will receive damage for allies and have high health but low damage.",
+  "key.maid_useful_tasks.switch_vehicle_control": "Switch Vehicle Control Mode",
+  "maid_rpg_task.allow_handle_vehicle.none": "Not allowing maid control vehicle",
+  "maid_rpg_task.allow_handle_vehicle.rot_only": "Allow maid control rotation only",
+  "maid_rpg_task.allow_handle_vehicle.full": "Allow maid control vehicle",
+  "key.maid_rpg_task.categories.main": "Maid Useful Tasks",
+  "gui.maid_rpg_task.logging.plant": "Plant Saplings",
+  "gui.maid_rpg_task.no": "No",
+  "gui.maid_rpg_task.yes": "Yes",
+  "gui.maid_rpg_task.revive.ownerOnly": "Only revive owner"
+}
