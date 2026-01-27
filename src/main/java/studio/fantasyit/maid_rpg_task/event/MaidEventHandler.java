@@ -12,6 +12,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import studio.fantasyit.maid_rpg_task.task.MaidMasterTask;
 import studio.fantasyit.maid_rpg_task.task.MaidTankTask;
 
 import java.util.*;
@@ -50,7 +51,10 @@ public class MaidEventHandler {
                 maid -> maid.isAlive()
                         && maid.getOwner() == owner
                         && maid.getTask() != null
-                        && maid.getTask().getUid().equals(MaidTankTask.UID)
+                        && (
+                        maid.getTask().getUid().equals(MaidTankTask.UID)
+                                || maid.getTask().getUid().equals(MaidMasterTask.UID)
+                )
         );
 
         if (maids.isEmpty()) return;

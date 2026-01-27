@@ -5,8 +5,11 @@ import com.github.tartaricacid.touhoulittlemaid.api.task.IRangedAttackTask;
 import com.github.tartaricacid.touhoulittlemaid.entity.ai.brain.task.*;
 import com.github.tartaricacid.touhoulittlemaid.entity.item.EntityExtinguishingAgent;
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
+import com.github.tartaricacid.touhoulittlemaid.entity.projectile.DanmakuShoot;
+import com.github.tartaricacid.touhoulittlemaid.init.InitEnchantments;
 import com.github.tartaricacid.touhoulittlemaid.init.InitItems;
 import com.github.tartaricacid.touhoulittlemaid.init.InitSounds;
+import com.github.tartaricacid.touhoulittlemaid.item.ItemHakureiGohei;
 import com.github.tartaricacid.touhoulittlemaid.util.SoundUtil;
 import com.google.common.collect.Lists;
 import com.mojang.datafixers.util.Pair;
@@ -20,7 +23,10 @@ import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.behavior.*;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.AbstractArrow;
@@ -161,6 +167,7 @@ public class MaidMasterTask implements IRangedAttackTask {
             entityArrow.setBaseDamage(
                     entityArrow.getBaseDamage() * (0.8 + v)
             );
+
             double x = livingEntity.getX() - entityMaid.getX();
             double y = livingEntity.getEyeY() - entityMaid.getEyeY();
             double z = livingEntity.getZ() - entityMaid.getZ();
@@ -168,7 +175,6 @@ public class MaidMasterTask implements IRangedAttackTask {
             float velocity = Mth.clamp(distance / 10f, 1.6f, 3.2f);
             float inaccuracy = 1 - Mth.clamp(distance / 100f, 0, 0.9f);
             entityArrow.setBaseDamage(entityArrow.getBaseDamage() + 4.0D);
-
             entityArrow.setNoGravity(true);
             entityArrow.shoot(x, y, z, velocity, inaccuracy);
             mainHandItem.hurtAndBreak(1, entityMaid, (maid) -> maid.broadcastBreakEvent(InteractionHand.MAIN_HAND));
@@ -190,9 +196,72 @@ public class MaidMasterTask implements IRangedAttackTask {
             mainHandItem.hurtAndBreak(1, entityMaid, (maid) -> maid.broadcastBreakEvent(InteractionHand.MAIN_HAND));
             entityMaid.playSound(SoundEvents.CROSSBOW_SHOOT, 1.0F, 1.0F / (entityMaid.getRandom().nextFloat() * 0.4F + 0.8F));
             entityMaid.level().addFreshEntity(entityArrow);
+        } else if (ItemHakureiGohei.isGohei(mainHandItem)) {
+            entityMaid.getBrain().getMemory(MemoryModuleType.NEAREST_LIVING_ENTITIES).ifPresent(livingEntities -> {
+                long entityCount = livingEntities.stream().filter(test -> enemyEntityTest(entityMaid, livingEntity, test)).count();
+                var level = entityMaid.level();
+                AttributeInstance attackDamage = entityMaid.getAttribute(Attributes.ATTACK_DAMAGE);
+                float attackValue = 2.0f;
+                if (attackDamage != null) {
+                    attackValue = (float) attackDamage.getBaseValue();
+                }
+                int impedingLevel = EnchantmentHelper.getTagEnchantmentLevel(InitEnchantments.IMPEDING.get(), mainHandItem);
+                int speedyLevel = EnchantmentHelper.getTagEnchantmentLevel(InitEnchantments.SPEEDY.get(), mainHandItem);
+                int multiShotLevel = EnchantmentHelper.getTagEnchantmentLevel(Enchantments.MULTISHOT, mainHandItem);
+                int endersEnderLevel = EnchantmentHelper.getTagEnchantmentLevel(InitEnchantments.ENDERS_ENDER.get(), mainHandItem);
+                float speed = (0.3f * (v + 1)) * (speedyLevel + 1);
+                boolean hurtEnderman = endersEnderLevel > 0;
+                float distance = entityMaid.distanceTo(livingEntity);
+                speed = speed + Mth.clamp(distance / 40f - 0.4f, 0, 2.4f);
+                float inaccuracy = 1 - Mth.clamp(distance / 100f, 0, 0.8f);
+                if (entityCount <= 1) {
+                    if (multiShotLevel > 0) {
+                        DanmakuShoot.create().setWorld(level).setThrower(entityMaid)
+                                .setTarget(livingEntity).setRandomColor().setRandomType()
+                                .setDamage(attackValue * (v + 1.2f)).setGravity(0)
+                                .setVelocity(speed).setHurtEnderman(hurtEnderman)
+                                .setInaccuracy(inaccuracy).setFanNum(3).setYawTotal(Math.PI / 12)
+                                .setImpedingLevel(impedingLevel)
+                                .fanShapedShot();
+                    } else {
+                        DanmakuShoot.create().setWorld(level).setThrower(entityMaid)
+                                .setTarget(livingEntity).setRandomColor().setRandomType()
+                                .setDamage(attackValue * (v + 1)).setGravity(0)
+                                .setVelocity(speed).setHurtEnderman(hurtEnderman)
+                                .setInaccuracy(inaccuracy / 5).setImpedingLevel(impedingLevel)
+                                .aimedShot();
+                    }
+                } else if (entityCount <= 5) {
+                    DanmakuShoot.create().setWorld(level).setThrower(entityMaid)
+                            .setTarget(livingEntity).setRandomColor().setRandomType()
+                            .setDamage(attackValue * (v + 1.2f)).setGravity(0)
+                            .setVelocity(speed).setHurtEnderman(hurtEnderman)
+                            .setInaccuracy(inaccuracy / 5).setFanNum(8).setYawTotal(Math.PI / 3)
+                            .setImpedingLevel(impedingLevel)
+                            .fanShapedShot();
+                } else {
+                    DanmakuShoot.create().setWorld(level).setThrower(entityMaid)
+                            .setTarget(livingEntity).setRandomColor().setRandomType()
+                            .setDamage(attackValue * (v + 1.5f)).setGravity(0)
+                            .setVelocity(speed).setHurtEnderman(hurtEnderman)
+                            .setInaccuracy(inaccuracy / 5).setFanNum(32).setYawTotal(2 * Math.PI / 3)
+                            .setImpedingLevel(impedingLevel)
+                            .fanShapedShot();
+                }
+                mainHandItem.hurtAndBreak(1, entityMaid, (maid) -> maid.broadcastBreakEvent(InteractionHand.MAIN_HAND));
+            });
         }
     }
 
+    public boolean isWeapon(EntityMaid maid, ItemStack stack) {
+        return ItemHakureiGohei.isGohei(stack);
+    }
+
+    private boolean enemyEntityTest(EntityMaid shooter, LivingEntity target, LivingEntity test) {
+        boolean canAttack = shooter.canAttack(test);
+        boolean sameType = target.getType().equals(test.getType());
+        return canAttack && sameType && shooter.canSee(test);
+    }
 
     @Override
     public boolean canSee(EntityMaid maid, LivingEntity target) {
@@ -245,9 +314,6 @@ public class MaidMasterTask implements IRangedAttackTask {
         return maid.getOffhandItem().is(InitItems.EXTINGUISHER.get());
     }
 
-    public boolean isWeapon(EntityMaid maid, ItemStack stack) {
-        return true;
-    }
 
     private boolean farAway(LivingEntity target, EntityMaid maid) {
         return maid.distanceTo(target) > getSearchRange(maid);

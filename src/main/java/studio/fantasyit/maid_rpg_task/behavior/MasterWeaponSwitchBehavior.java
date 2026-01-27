@@ -1,3 +1,4 @@
+
 package studio.fantasyit.maid_rpg_task.behavior;
 
 import com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid;
@@ -9,6 +10,7 @@ import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.item.*;
+import com.github.tartaricacid.touhoulittlemaid.item.ItemHakureiGohei;
 import net.minecraftforge.items.wrapper.CombinedInvWrapper;
 
 import java.util.Optional;
@@ -25,6 +27,8 @@ public class MasterWeaponSwitchBehavior extends Behavior<EntityMaid> {
     protected void tick(ServerLevel level, EntityMaid maid, long gameTime) {
         Optional<LivingEntity> targetOpt = maid.getBrain().getMemory(MemoryModuleType.ATTACK_TARGET);
         if (targetOpt.isEmpty()) return;
+
+        handleOffhandRanged(maid);
 
         LivingEntity target = targetOpt.get();
         double distanceSq = maid.distanceToSqr(target);
@@ -49,7 +53,7 @@ public class MasterWeaponSwitchBehavior extends Behavior<EntityMaid> {
     private void switchToRanged(EntityMaid maid) {
         CombinedInvWrapper handler = maid.getAvailableInv(true);
         int bestSlot = -1;
-        
+
         for (int i = 0; i < handler.getSlots(); i++) {
             ItemStack stack = handler.getStackInSlot(i);
             if (stack.getItem() instanceof CrossbowItem) {
@@ -67,7 +71,7 @@ public class MasterWeaponSwitchBehavior extends Behavior<EntityMaid> {
 
     private void switchToMelee(EntityMaid maid) {
         CombinedInvWrapper handler = maid.getAvailableInv(true);
-        
+
         if (!lastMeleeWeapon.isEmpty()) {
             for (int i = 0; i < handler.getSlots(); i++) {
                 if (ItemStack.isSameItemSameTags(handler.getStackInSlot(i), lastMeleeWeapon)) {
@@ -90,7 +94,7 @@ public class MasterWeaponSwitchBehavior extends Behavior<EntityMaid> {
         CombinedInvWrapper handler = maid.getAvailableInv(true);
         ItemStack toEquip = handler.getStackInSlot(slot);
         ItemStack current = maid.getMainHandItem();
-        
+
         handler.setStackInSlot(slot, current.copy());
         maid.setItemInHand(InteractionHand.MAIN_HAND, toEquip.copy());
     }
@@ -98,5 +102,27 @@ public class MasterWeaponSwitchBehavior extends Behavior<EntityMaid> {
     private boolean isMeleeWeapon(ItemStack stack) {
         Item item = stack.getItem();
         return item instanceof SwordItem || item instanceof AxeItem || item instanceof TridentItem;
+    }
+
+    private void handleOffhandRanged(EntityMaid maid) {
+        ItemStack off = maid.getOffhandItem();
+        if (!off.isEmpty() && ((off.getItem() instanceof BowItem) || (off.getItem() instanceof CrossbowItem) || ItemHakureiGohei.isGohei(off))) {
+            CombinedInvWrapper handler = maid.getAvailableInv(true);
+            boolean moved = false;
+            for (int i = 0; i < handler.getSlots(); i++) {
+                ItemStack slot = handler.getStackInSlot(i);
+                if (slot.isEmpty()) {
+                    handler.setStackInSlot(i, off.copy());
+                    maid.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+                    moved = true;
+                    break;
+                }
+            }
+            if (!moved) {
+                ItemStack current = maid.getMainHandItem();
+                maid.setItemInHand(InteractionHand.MAIN_HAND, off.copy());
+                maid.setItemInHand(InteractionHand.OFF_HAND, current.copy());
+            }
+        }
     }
 }

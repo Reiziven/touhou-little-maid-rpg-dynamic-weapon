@@ -29,12 +29,10 @@ import studio.fantasyit.maid_rpg_task.behavior.TankAggroBehavior;
 import java.util.List;
 import java.util.function.Predicate;
 
+
 public class MaidTankTask implements IAttackTask {
     public static final ResourceLocation UID = new ResourceLocation(MaidRpgTask.MODID, "tank_task");
     private static final int MAX_STOP_ATTACK_DISTANCE = 8;
-
-
-
 
     @Override
     public ResourceLocation getUid() {
@@ -53,15 +51,10 @@ public class MaidTankTask implements IAttackTask {
 
     @Override
     public List<Pair<Integer, BehaviorControl<? super EntityMaid>>> createBrainTasks(EntityMaid maid) {
-
-
-
-
-
         BehaviorControl<EntityMaid> supplementedTask =
                 StartAttacking.create(this::hasAssaultWeapon, IAttackTask::findFirstValidAttackTarget);
         BehaviorControl<EntityMaid> findTargetTask =
-                StopAttackingIfTargetInvalid.create(target -> !hasAssaultWeapon(maid) || farAway(target, maid));
+                StopAttackingIfTargetInvalid.create(target -> !hasAssaultWeapon(maid));
         BehaviorControl<Mob> moveToTargetTask =
                 SetWalkTargetFromAttackTargetIfTargetOutOfReach.create(0.6f);
         BehaviorControl<Mob> attackTargetTask = MeleeAttack.create(40);
@@ -69,6 +62,7 @@ public class MaidTankTask implements IAttackTask {
         BehaviorControl<EntityMaid> TankAggroBehavior = new TankAggroBehavior();
         BehaviorControl<EntityMaid> tankModifierTask = new TankModifierBehavior();
         BehaviorControl<EntityMaid> tankRedirectTask = new TankRedirectBehavior();
+        BehaviorControl<EntityMaid> shieldBuffTask = new StunBehavior();
 
         return Lists.newArrayList(
                 Pair.of(5, TankAggroBehavior),
@@ -78,6 +72,7 @@ public class MaidTankTask implements IAttackTask {
                 Pair.of(5, attackTargetTask),
                 Pair.of(5, maidUseShieldTask),
                 Pair.of(3, tankModifierTask),
+                Pair.of(2, shieldBuffTask),
                 Pair.of(1, tankRedirectTask)
         );
     }
@@ -100,6 +95,9 @@ public class MaidTankTask implements IAttackTask {
         }
         return false;
     }
+
+
+
 
     @Override
     public List<Pair<String, Predicate<EntityMaid>>> getConditionDescription(EntityMaid maid) {

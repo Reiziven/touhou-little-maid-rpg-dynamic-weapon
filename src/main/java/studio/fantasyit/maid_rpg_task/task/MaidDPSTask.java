@@ -66,7 +66,7 @@ public class MaidDPSTask implements IRangedAttackTask {
     }
 
 
-    
+
     @Override
     public List<Pair<Integer, BehaviorControl<? super EntityMaid>>> createBrainTasks(EntityMaid maid) {
 
@@ -86,9 +86,8 @@ public class MaidDPSTask implements IRangedAttackTask {
                 MeleeAttack.create(10);
 
         BehaviorControl<EntityMaid> bowShootTask = new MaidShootTargetTask(10);
-
-        BehaviorControl<EntityMaid> crossbowShoot =
-                new MaidCrossbowAttack();
+        BehaviorControl<EntityMaid> crossbowShoot = new MaidCrossbowAttack();
+        BehaviorControl<EntityMaid> goheiShoot = new GoheiAttackBehavior(10);
 
         BehaviorControl<EntityMaid> dpsModifier =
                 new DpsModifierBehavior();
@@ -108,6 +107,7 @@ public class MaidDPSTask implements IRangedAttackTask {
                 Pair.of(4, crossbowShoot),
                 Pair.of(5, startAttack),
                 Pair.of(4, bowShootTask),
+                Pair.of(4, goheiShoot),
                 Pair.of(5, stopAttack),
                 Pair.of(5, moveToTarget),
                 Pair.of(5, meleeAttack),
@@ -256,7 +256,6 @@ public class MaidDPSTask implements IRangedAttackTask {
 
     private boolean hasRangedWeapon(EntityMaid maid) {
         if (isRangedWeapon(maid.getMainHandItem())) return true;
-        if (isRangedWeapon(maid.getOffhandItem())) return true;
 
         CombinedInvWrapper inv = maid.getAvailableInv(true);
         for (int i = 0; i < inv.getSlots(); i++) {

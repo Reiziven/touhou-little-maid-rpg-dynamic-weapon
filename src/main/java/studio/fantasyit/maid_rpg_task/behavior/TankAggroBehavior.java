@@ -6,67 +6,48 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.ai.behavior.Behavior;
-import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.entity.ai.goal.WrappedGoal;
 import net.minecraft.world.entity.ai.goal.target.TargetGoal;
 import net.minecraft.world.phys.AABB;
 
 import java.util.*;
 
 public class TankAggroBehavior extends Behavior<EntityMaid> {
-    private static class AggroMaidGoal extends TargetGoal {
-        private final Mob mob;
-        private final EntityMaid maid;
-        private final List<Goal> originalGoals;
 
-        public AggroMaidGoal(Mob mob, EntityMaid maid, List<Goal> originalGoals) {
-            super(mob, false);
-            this.mob = mob;
+    private static class AggroMaidGoal extends TargetGoal {
+        private final EntityMaid maid;
+
+        public AggroMaidGoal(Mob mob, EntityMaid maid) {
+            super(mob, true);
             this.maid = maid;
-            this.originalGoals = originalGoals;
         }
 
         @Override
         public boolean canUse() {
-            return maid.isAlive() && mob.canAttack(maid) && maid.level() == mob.level();
+            return maid.isAlive()
+                    && maid.level() == mob.level()
+                    && !mob.isDeadOrDying();
         }
 
         @Override
         public boolean canContinueToUse() {
-            return maid.isAlive() && mob.canAttack(maid) && maid.level() == mob.level();
+            return canUse();
         }
 
         @Override
         public void start() {
+            if (!maid.isAlive() || maid.level() != mob.level()) return;
             mob.setTarget(maid);
         }
 
         @Override
-        public void tick() {
-            if (!maid.isAlive() || maid.level() != mob.level()) {
-                cleanup();
-                return;
+        public void stop() {
+            if (mob.getTarget() == maid) {
+                mob.setTarget(null);
             }
-            if (mob.getTarget() != maid) {
-                mob.setTarget(maid);
-            }
-        }
-
-        private void cleanup() {
-            mob.setTarget(null);
-            mob.targetSelector.removeGoal(this);
-            for (Goal goal : originalGoals) {
-                mob.targetSelector.addGoal(1, goal);
-            }
-        }
-
-        public boolean isSameMaid(EntityMaid otherMaid) {
-            return this.maid.getUUID().equals(otherMaid.getUUID());
         }
     }
 
-    private final Set<UUID> aggroEntities = new HashSet<>();
-    private final Map<UUID, List<Goal>> originalGoalsMap = new HashMap<>();
+    private final Map<UUID, AggroMaidGoal> activeAggroGoals = new HashMap<>();
 
     public TankAggroBehavior() {
         super(Map.of(), 200);
@@ -91,20 +72,16 @@ public class TankAggroBehavior extends Behavior<EntityMaid> {
 
     @Override
     protected void stop(ServerLevel level, EntityMaid maid, long gameTime) {
-        for (UUID uuid : aggroEntities) {
-            Entity entity = level.getEntity(uuid);
-            if (entity instanceof Mob mob && mob.isAlive()) {
-                mob.targetSelector.removeAllGoals(goal -> goal instanceof AggroMaidGoal g && g.isSameMaid(maid));
-                List<Goal> originalGoals = originalGoalsMap.get(mob.getUUID());
-                if (originalGoals != null) {
-                    for (Goal goal : originalGoals) {
-                        mob.targetSelector.addGoal(1, goal);
-                    }
+        for (var entry : activeAggroGoals.entrySet()) {
+            Entity e = level.getEntity(entry.getKey());
+            if (e instanceof Mob mob) {
+                mob.targetSelector.removeGoal(entry.getValue());
+                if (mob.getTarget() == maid) {
+                    mob.setTarget(null);
                 }
             }
         }
-        aggroEntities.clear();
-        originalGoalsMap.clear();
+        activeAggroGoals.clear();
     }
 
     @Override
@@ -118,41 +95,23 @@ public class TankAggroBehavior extends Behavior<EntityMaid> {
 
         AABB area = AABB.ofSize(maid.position(), 16, 8, 16);
 
-        List<TamableAnimal> pets = level.getEntitiesOfClass(TamableAnimal.class, area,
-                p -> p.isAlive() && Objects.equals(p.getOwnerUUID(), ownerId));
-
-        List<Mob> mobs = level.getEntitiesOfClass(Mob.class, area, mob -> {
-            Entity target = mob.getTarget();
-            if (target == null) return false;
-            if (target.equals(maid)) return true;
-            if (maid.getOwner() != null && target.equals(maid.getOwner())) return true;
-            for (TamableAnimal pet : pets) {
-                if (target.equals(pet)) return true;
-            }
-            return false;
-        });
+        // Predicate SIMPLES e seguro
+        List<Mob> mobs = level.getEntitiesOfClass(
+                Mob.class,
+                area,
+                mob -> mob.isAlive() && !mob.isNoAi()
+        );
 
         for (Mob mob : mobs) {
-            if (!aggroEntities.contains(mob.getUUID())) {
-                List<Goal> originalGoals = new ArrayList<>();
-                List<WrappedGoal> toRemove = new ArrayList<>();
+            if (activeAggroGoals.containsKey(mob.getUUID())) continue;
 
-                for (WrappedGoal wrapped : mob.targetSelector.getAvailableGoals()) {
-                    Goal goal = wrapped.getGoal();
-                    if (goal instanceof TargetGoal) {
-                        originalGoals.add(goal);
-                        toRemove.add(wrapped);
-                    }
-                }
-                for (WrappedGoal wrapped : toRemove) {
-                    mob.targetSelector.removeGoal(wrapped.getGoal());
-                }
+            // 👇 REGRA DE OURO: só puxa aggro se já existir alvo
+            Entity currentTarget = mob.getTarget();
+            if (currentTarget == null) continue;
 
-                AggroMaidGoal aggroGoal = new AggroMaidGoal(mob, maid, originalGoals);
-                mob.targetSelector.addGoal(0, aggroGoal);
-                aggroEntities.add(mob.getUUID());
-                originalGoalsMap.put(mob.getUUID(), originalGoals);
-            }
+            AggroMaidGoal goal = new AggroMaidGoal(mob, maid);
+            mob.targetSelector.addGoal(0, goal);
+            activeAggroGoals.put(mob.getUUID(), goal);
         }
     }
 }

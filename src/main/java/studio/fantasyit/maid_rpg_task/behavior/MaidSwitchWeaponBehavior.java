@@ -32,17 +32,18 @@ public class MaidSwitchWeaponBehavior extends Behavior<EntityMaid> {
         ItemStack mainHand = maid.getMainHandItem();
         ItemStack offHand = maid.getOffhandItem();
 
+        if (isRangedWeapon(offHand)) {
+            return true;
+        }
 
         if (distanceSq > RANGED_DISTANCE_THRESHOLD_SQR) {
-            // Distance > 8 blocks: Need Ranged
-            if (isRangedWeapon(mainHand)) return false; // Already have it
-            if (isRangedWeapon(offHand)) return true; // Can swap offhand to main
-            return findWeaponSlot(maid, this::isRangedWeapon) != -1; // Only start if we have one
+            if (isRangedWeapon(mainHand)) return false;
+            if (findWeaponSlot(maid, this::isRangedWeapon) != -1) return true;
+            return isRangedWeapon(offHand);
         } else {
-            // Distance <= 8 blocks: Need Assault (Melee)
-            if (isAssaultWeapon(mainHand)) return false; // Already have it
-            if (isAssaultWeapon(offHand)) return true; // Can swap offhand to main
-            return findWeaponSlot(maid, this::isAssaultWeapon) != -1; // Only start if we have one
+            if (isAssaultWeapon(mainHand)) return false;
+            if (findWeaponSlot(maid, this::isAssaultWeapon) != -1) return true;
+            return isAssaultWeapon(offHand);
         }
     }
 
@@ -54,15 +55,14 @@ public class MaidSwitchWeaponBehavior extends Behavior<EntityMaid> {
         LivingEntity target = targetOpt.get();
         double distanceSq = maid.distanceToSqr(target);
 
+        handleOffhandRanged(maid);
+
         if (distanceSq > RANGED_DISTANCE_THRESHOLD_SQR) {
-            switchToWeapon(maid, this::isRangedWeapon);
+            switchToRangedWeapon(maid);
         } else {
-            switchToWeapon(maid, this::isAssaultWeapon);
+            switchToMeleeWeapon(maid);
         }
     }
-
-    // We do NOT override canStillUse, so it defaults to false.
-    // This ensures the behavior runs once (start -> stop) and then re-evaluates next tick via checkExtraStartConditions.
 
     private int findWeaponSlot(EntityMaid maid, Predicate<ItemStack> predicate) {
         CombinedInvWrapper handler = maid.getAvailableInv(true);
@@ -75,28 +75,73 @@ public class MaidSwitchWeaponBehavior extends Behavior<EntityMaid> {
         return -1;
     }
 
-    private void switchToWeapon(EntityMaid maid, Predicate<ItemStack> predicate) {
-        // Prefer offhand if it already has the desired weapon
-        ItemStack off = maid.getOffhandItem();
-        if (predicate.test(off)) {
-            ItemStack current = maid.getMainHandItem();
-            maid.setItemInHand(InteractionHand.MAIN_HAND, off.copy());
-            maid.setItemInHand(InteractionHand.OFF_HAND, current.copy());
-            return;
-        }
-
+    private int findWeaponSlotExcluding(EntityMaid maid, Predicate<ItemStack> predicate, ItemStack exclude) {
         CombinedInvWrapper handler = maid.getAvailableInv(true);
-        int bestSlot = findWeaponSlot(maid, predicate);
+        for (int i = 0; i < handler.getSlots(); i++) {
+            ItemStack stack = handler.getStackInSlot(i);
+            if (!ItemStack.isSameItemSameTags(stack, exclude) && predicate.test(stack)) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
+    private void switchToRangedWeapon(EntityMaid maid) {
+        handleOffhandRanged(maid);
+        CombinedInvWrapper handler = maid.getAvailableInv(true);
+        int bestSlot = findWeaponSlotExcluding(maid, this::isRangedWeapon, maid.getOffhandItem());
         if (bestSlot != -1) {
             ItemStack toEquip = handler.getStackInSlot(bestSlot);
             ItemStack current = maid.getMainHandItem();
-            
-            // Swap items
             handler.setStackInSlot(bestSlot, current.copy());
             maid.setItemInHand(InteractionHand.MAIN_HAND, toEquip.copy());
-            
-            // Play a sound or particles? Optional.
+            return;
+        }
+        ItemStack off = maid.getOffhandItem();
+        if (isRangedWeapon(off)) {
+            ItemStack current = maid.getMainHandItem();
+            maid.setItemInHand(InteractionHand.MAIN_HAND, off.copy());
+            maid.setItemInHand(InteractionHand.OFF_HAND, current.copy());
+        }
+    }
+
+    private void switchToMeleeWeapon(EntityMaid maid) {
+        CombinedInvWrapper handler = maid.getAvailableInv(true);
+        int bestSlot = findWeaponSlotExcluding(maid, this::isAssaultWeapon, maid.getOffhandItem());
+        if (bestSlot != -1) {
+            ItemStack toEquip = handler.getStackInSlot(bestSlot);
+            ItemStack current = maid.getMainHandItem();
+            handler.setStackInSlot(bestSlot, current.copy());
+            maid.setItemInHand(InteractionHand.MAIN_HAND, toEquip.copy());
+            return;
+        }
+        ItemStack off = maid.getOffhandItem();
+        if (isAssaultWeapon(off)) {
+            ItemStack current = maid.getMainHandItem();
+            maid.setItemInHand(InteractionHand.MAIN_HAND, off.copy());
+            maid.setItemInHand(InteractionHand.OFF_HAND, current.copy());
+        }
+    }
+
+    private void handleOffhandRanged(EntityMaid maid) {
+        ItemStack off = maid.getOffhandItem();
+        if (!off.isEmpty() && isRangedWeapon(off)) {
+            CombinedInvWrapper handler = maid.getAvailableInv(true);
+            boolean moved = false;
+            for (int i = 0; i < handler.getSlots(); i++) {
+                ItemStack slot = handler.getStackInSlot(i);
+                if (slot.isEmpty()) {
+                    handler.setStackInSlot(i, off.copy());
+                    maid.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+                    moved = true;
+                    break;
+                }
+            }
+            if (!moved) {
+                ItemStack current = maid.getMainHandItem();
+                maid.setItemInHand(InteractionHand.MAIN_HAND, off.copy());
+                maid.setItemInHand(InteractionHand.OFF_HAND, current.copy());
+            }
         }
     }
 
